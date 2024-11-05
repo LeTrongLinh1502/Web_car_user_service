@@ -1,5 +1,6 @@
 package com.example.userservice.service.auth;
 
+import com.example.userservice.config.redis.RedisComponent;
 import com.example.userservice.dtos.auth.JWTPayload;
 import com.example.userservice.dtos.handlers.CustomBadRequestException;
 import com.example.userservice.dtos.request.UserAuthRequest;
@@ -16,6 +17,7 @@ import org.springframework.util.CollectionUtils;
 
 import javax.crypto.SecretKey;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 @Service
@@ -23,9 +25,11 @@ public class AuthService {
     private final UserService userService;
     @Value("${auth.secret.key}")
     String secretKey;
+    private final RedisComponent redisComponent;
 
-    public AuthService(UserService userService) {
+    public AuthService(UserService userService, RedisComponent redisComponent) {
         this.userService = userService;
+        this.redisComponent = redisComponent;
     }
 
     public Integer verify(String token) {
@@ -83,6 +87,10 @@ public class AuthService {
                 .setId(generateTokenId())
                 .signWith(SignatureAlgorithm.HS256, secretKey)
                 .compact();
+
+        // Tạo xong đẩy token vào redis
+        String keyRedis = authRequest.getUsername() + "_" + authRequest.getPassword() + "user-service";
+        redisComponent.addValue(keyRedis, accessToken, 2, TimeUnit.DAYS);
 
         return AuthenticationResponse.builder()
                 .accessToken(accessToken)
